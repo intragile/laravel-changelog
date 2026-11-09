@@ -18,12 +18,12 @@ All notable changes are recorded here. The format follows
 - Translations in `CHANGELOG.{locale}.md` beside the base file, with a per-version fallback to the
   base file and `locale` / `fallback` markers on every release and on the list.
 - JSON API: `GET {prefix}` (paginated), `GET {prefix}/latest` and `GET {prefix}/{version}`.
-- Locale resolution from `?locale=`, then `Accept-Language`, then the application locale, limited
-  to the configured locales.
+- Locale resolution from `?locale=`, then `Accept-Language` (full tag such as `pt-BR` first, then
+  the primary tag), then the application locale, limited to the configured locales.
 - Access control: `public`, `authenticated`, the name of a gate, or `disabled`.
 - `Changelog::routes()` to register the routes inside the host application's own route group.
-- Programmatic access through the `Changelog` facade: `releases()`, `find()`, `latest()`,
-  `parsed()` and `translationPath()`.
+- Programmatic access through the `Changelog` facade: `releases()` (alias `versions()`), `find()`,
+  `latest()`, `parsed()` and `translationPath()`.
 - Caching keyed on the path, modification time and size of the files, so a deploy never serves
   stale content.
 - `changelog:check` command: parse errors, translations missing a version or carrying an extra

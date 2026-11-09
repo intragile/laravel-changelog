@@ -40,15 +40,33 @@ php artisan vendor:publish --tag=changelog-config
 
 ## Quick start
 
-Read the access section first: with the shipped defaults the endpoints answer **401 to everyone**,
-including signed-in token users.
+Read the access section first. With the shipped defaults (`access` is `authenticated`, and the
+automatic routes sit in the `api` group only) a request passes only if your **default guard**
+already recognises the user. For a typical token API (Sanctum) it does not, so the endpoints
+answer **401** even to signed-in users.
 
 Recommended: turn the automatic routes off and register the routes inside the route group that
-already authenticates your users.
+already authenticates your users. Publish the config first:
+
+```bash
+php artisan vendor:publish --tag=changelog-config
+```
+
+Then, in the published file, switch the automatic routes off and, while you are there, check
+`path` (the changelog file, `base_path('CHANGELOG.md')` by default) and `locales` (every language
+the API may serve, e.g. `['en', 'hu']`):
 
 ```php
 // config/changelog.php
-'routes' => ['enabled' => false],
+'path' => base_path('CHANGELOG.md'),
+'locales' => ['en', 'hu'],
+
+'routes' => [
+    'enabled' => false,
+    'prefix' => 'changelog',
+    'middleware' => ['api'],
+    'name' => 'changelog.',
+],
 ```
 
 ```php
@@ -62,6 +80,10 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
 
 `Changelog::routes()` adds its own `prefix` (`changelog`) and route-name prefix (`changelog.`) from
 the config, so the group above only supplies the outer prefix and the authentication.
+
+Keep the whole `routes` array in your published config. Laravel merges package config only at the
+top level, so a `routes` array you write replaces the shipped one; keys you leave out fall back to
+the defaults in the table below.
 
 ## Configuration
 
@@ -101,10 +123,34 @@ Sanctum token or a session user is not recognised and gets 401. Either:
 1. **Recommended:** `routes.enabled = false` and call `Changelog::routes()` inside your own
    authenticated group, as in the quick start; or
 2. keep the automatic routes and add your authentication middleware:
-   `'routes' => ['middleware' => ['api', 'auth:sanctum']]`.
+
+   ```php
+   'routes' => [
+       'enabled' => true,
+       'prefix' => 'changelog',
+       'middleware' => ['api', 'auth:sanctum'],
+       'name' => 'changelog.',
+   ],
+   ```
 
 If your Sanctum guard is not the default guard, a gate or a custom group is the safer choice.
 Use `public` only for data you would also put on a public web page.
+
+Middleware of the surrounding group (such as `auth:sanctum`) runs **before** the package's own
+middleware, including the one that forces `Accept: application/json`. A guest who sends no
+`Accept` header is therefore rejected by your application's own unauthenticated handling, which by
+default redirects to a login route. Make your application render JSON for its API, for example
+with `$exceptions->shouldRenderJsonWhen(fn ($request) => $request->is('api/*'))` in
+`bootstrap/app.php`.
+
+A gate is consulted for guests too, but Laravel only calls a gate callback for a guest if its first
+parameter, the user, is nullable or defaults to `null`. To let guests through a gate, declare it that way:
+
+```php
+Gate::define('view-changelog', fn (?User $user): bool => $user === null || $user->can_see_releases);
+```
+
+A callback that requires a `User`, or takes no parameter at all, denies every guest with 401.
 
 ## API
 
@@ -152,7 +198,9 @@ values give a 422 validation error. Every endpoint also takes `?locale=`.
 ```
 
 - `latest` and `{version}` return a single release object, wrapped in `data`.
-- `url` is the link reference of the heading (`[1.2.0]: https://...`), or `null`.
+- `url` is the link of the heading (inline or a `[1.2.0]: https://...` reference), or `null`. Only
+  `http`, `https` and relative URLs are passed on; any other scheme (`javascript:`, `data:`, ...)
+  gives `null`.
 - Item `html` is rendered markdown; `text` is the same content as plain text.
 - Top level `locale` is the resolved language. Top level `fallback` is `true` when **any release
   on the returned page** is shown in the base language because it has no translation.
@@ -165,7 +213,9 @@ The first of these that is a configured locale wins; anything not in `locales` f
 the next step:
 
 1. `?locale=hu`
-2. `Accept-Language` (the primary tag, in the client's order: `hu-HU` matches `hu`)
+2. `Accept-Language`, in the client's order. Each language matches by its full tag first, then by
+   its primary tag: `pt-BR` matches a configured `pt-BR` (or `pt_BR`), otherwise `pt`; `hu-HU`
+   matches `hu`. A bare `pt` does not match `pt-BR`.
 3. the application locale (`app()->getLocale()`)
 4. `base_locale`
 
@@ -211,17 +261,39 @@ use IntrAgile\Changelog\Facades\Changelog;
 
 Changelog::latest('hu');          // ?LocalizedRelease
 Changelog::releases('hu');        // list<LocalizedRelease>, honours show_unreleased
+Changelog::versions('hu');        // the same as releases()
 Changelog::find('1.2.0', 'hu');   // ?LocalizedRelease
 Changelog::parsed();              // the base file as written, with parse issues
 ```
 
 A `LocalizedRelease` holds the parsed `release`, the `locale` it comes from and `fallback`.
 
+## Public API and semantic versioning
+
+The package follows [Semantic Versioning](https://semver.org/). From 1.0.0 on, a breaking change to
+any of the following waits for the next major version:
+
+- the `Changelog` facade methods: `releases()`, `versions()`, `find()`, `latest()`, `parsed()`,
+  `translationPath()` and `routes()`;
+- the readable properties of `LocalizedRelease`, `Release`, `ReleaseGroup`, `ParsedChangelog` and
+  `ParseIssue` (and the `ParseIssue::ERROR` / `ParseIssue::WARNING` constants);
+- the config keys and their meaning;
+- the routes, their names and query parameters, and the JSON shapes documented above;
+- the `changelog:check` command, its options and its exit status.
+
+Not covered: constructing the value objects yourself (their constructors may gain parameters),
+and every class or method marked `@internal`: the controller, middleware and resource, the
+command class, the locale resolver, the markdown renderer, the parser and the repository
+constructor. Resolve the repository from the container or use the facade.
+
 ## Caching
 
-Parsed releases are cached per locale, in the configured store, under a key built from the path,
-modification time and size of the base and translation files. A deploy that changes a file
-therefore shows up without clearing anything.
+Parsed releases are cached per locale, in the configured store, together with their rendered HTML
+and text, under a key built from the path, modification time and size of the base and translation
+files. A deploy that changes a file therefore shows up without clearing anything. Entries hold
+only arrays and strings, so they work with stores that refuse to unserialize objects
+(`cache.serializable_classes = false`), and they expire after a day so the keys of old deploys do
+not pile up.
 
 Limitation: an edit made within the same second as the previous one that leaves the file size
 exactly the same is not detected. It appears with the next change to the file, or after you clear

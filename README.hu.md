@@ -40,15 +40,33 @@ php artisan vendor:publish --tag=changelog-config
 
 ## Gyors kezdés
 
-Előbb olvasd el a hozzáférésről szóló részt: az alapbeállítással a végpontok **mindenkinek 401-et
-adnak**, a bejelentkezett token-os felhasználónak is.
+Előbb olvasd el a hozzáférésről szóló részt. Az alapbeállítással (az `access` értéke
+`authenticated`, az automatikus route-ok pedig csak az `api` csoportban vannak) a kérés csak akkor
+megy át, ha az **alapértelmezett guard** már felismeri a felhasználót. Egy szokásos tokenes API-nál
+(Sanctum) ez nem így van, ezért a végpontok a bejelentkezett felhasználónak is **401-et** adnak.
 
 Ajánlott: kapcsold ki az automatikus route-okat, és a saját, már hitelesítő route-csoportodban
-regisztráld őket.
+regisztráld őket. Előbb publikáld a configot:
+
+```bash
+php artisan vendor:publish --tag=changelog-config
+```
+
+Utána a publikált fájlban kapcsold ki az automatikus route-okat, és ha már ott vagy, nézd át a
+`path` (a changelog-fájl, alapból `base_path('CHANGELOG.md')`) és a `locales` (minden nyelv, amelyet
+az API kiszolgálhat, pl. `['en', 'hu']`) értékét:
 
 ```php
 // config/changelog.php
-'routes' => ['enabled' => false],
+'path' => base_path('CHANGELOG.md'),
+'locales' => ['en', 'hu'],
+
+'routes' => [
+    'enabled' => false,
+    'prefix' => 'changelog',
+    'middleware' => ['api'],
+    'name' => 'changelog.',
+],
 ```
 
 ```php
@@ -62,6 +80,10 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
 
 A `Changelog::routes()` a configból maga teszi hozzá a saját előtagját (`changelog`) és a route-név
 előtagot (`changelog.`), így a fenti csoport csak a külső előtagot és a hitelesítést adja.
+
+A publikált configban a teljes `routes` tömböt tartsd meg. A Laravel a csomag configját csak a
+legfelső szinten fésüli össze, így az általad megadott `routes` tömb lecseréli a csomagét; a
+kihagyott kulcsok az alábbi táblázat alapértékeit kapják.
 
 ## Beállítások
 
@@ -95,16 +117,40 @@ middleware-ben fut, tehát az automatikus route-okra és a `Changelog::routes()`
 | `disabled` | Minden route **404**. |
 
 Az `authenticated` a `$request->user()`-t nézi az **alapértelmezett guardon**. A csomag saját
-hitelesítést nem ad, az alap route-csoport pedig csak `['api']`, ezért kapásból sem a Sanctum token,
-sem a munkamenet nem ismerhető fel, és 401 jön. Két megoldás:
+hitelesítést nem ad, az alap route-csoport pedig csak `['api']`, ezért további beállítás nélkül sem
+a Sanctum token, sem a munkamenet nem ismerhető fel, és 401 jön. Két megoldás:
 
 1. **Ajánlott:** `routes.enabled = false`, és a `Changelog::routes()` hívása a saját hitelesített
    csoportodban, mint a gyors kezdésben; vagy
 2. az automatikus route-ok megtartása és a hitelesítő middleware hozzáadása:
-   `'routes' => ['middleware' => ['api', 'auth:sanctum']]`.
+
+   ```php
+   'routes' => [
+       'enabled' => true,
+       'prefix' => 'changelog',
+       'middleware' => ['api', 'auth:sanctum'],
+       'name' => 'changelog.',
+   ],
+   ```
 
 Ha a Sanctum-guardod nem az alapértelmezett, biztonságosabb a gate vagy az egyedi csoport.
 `public`-ot csak olyan adatra használj, amit nyilvános weboldalra is kitennél.
+
+A körülvevő csoport middleware-jei (például az `auth:sanctum`) a csomag saját middleware-jei
+**előtt** futnak, így az `Accept: application/json`-t kényszerítő előtt is. Az `Accept` fejléc
+nélkül érkező vendéget ezért az alkalmazásod saját, hitelesítetlen kérésekre vonatkozó kezelése
+utasítja el, amely alapból a bejelentkező route-ra irányít át. Állítsd be, hogy az alkalmazásod az
+API-ra JSON-t adjon, például a `bootstrap/app.php`-ban:
+`$exceptions->shouldRenderJsonWhen(fn ($request) => $request->is('api/*'))`.
+
+A gate vendégre is lefut, de a Laravel csak akkor hívja meg vendégnél a gate callbackjét, ha annak
+első, user paramétere nullable, vagy `null` az alapértéke. Ha a gate-en vendéget is át akarsz engedni, így deklaráld:
+
+```php
+Gate::define('view-changelog', fn (?User $user): bool => $user === null || $user->can_see_releases);
+```
+
+Az a callback, amely kötelezően `User`-t vár, vagy egyáltalán nincs paramétere, minden vendéget 401-gyel utasít el.
 
 ## API
 
@@ -151,7 +197,8 @@ A lista paraméterei: `page` (1 és 1000000 között) és `per_page` (1 és `max
 ```
 
 - A `latest` és a `{version}` egyetlen kiadás-objektumot ad, `data` alatt.
-- Az `url` a cím linkhivatkozása (`[1.2.0]: https://...`), vagy `null`.
+- Az `url` a cím linkje (inline vagy `[1.2.0]: https://...` hivatkozás), vagy `null`. Csak `http`,
+  `https` és relatív URL jut tovább; bármely más séma (`javascript:`, `data:`, ...) `null`-t ad.
 - Az elem `html` mezője renderelt markdown; a `text` ugyanaz egyszerű szövegként.
 - A legfelső `locale` a feloldott nyelv. A legfelső `fallback` akkor `true`, ha **a visszaadott
   oldal bármelyik kiadása** az alapnyelven jelenik meg, mert nincs hozzá fordítás.
@@ -164,11 +211,13 @@ Az első olyan találat nyer, amely szerepel a `locales`-ben; ami nincs benne, a
 lépésre esik át:
 
 1. `?locale=hu`
-2. `Accept-Language` (az elsődleges címke, a kliens sorrendjében: a `hu-HU` a `hu`-ra illik)
+2. `Accept-Language`, a kliens sorrendjében. Minden nyelv előbb a teljes címkéjével, aztán az
+   elsődleges címkéjével illeszkedik: a `pt-BR` a beállított `pt-BR`-re (vagy `pt_BR`-re), ennek
+   hiányában a `pt`-re illik; a `hu-HU` a `hu`-ra. A puszta `pt` nem illik a `pt-BR`-re.
 3. az alkalmazás nyelve (`app()->getLocale()`)
 4. `base_locale`
 
-Az a SPA, amely a felhasználó nyelvét csak kliensoldalon tartja, küldjön `?locale=` vagy
+Ha az SPA a felhasználó nyelvét csak kliensoldalon tartja, küldjön `?locale=` vagy
 `Accept-Language` értéket.
 
 ## Fordítások
@@ -190,10 +239,10 @@ php artisan changelog:check
 php artisan changelog:check --locale=hu     # csak ez a fordítás; léteznie kell
 ```
 
-Fájl és sor megjelöléssel jelzi a parse-hibákat (és figyelmeztetéseket), az olyan alapfájlt, amiben
-nincs kiadás, a fordítást, amelyből hiányzik egy kiadott verzió, a fordítást, amelyben az alapfájlban
-nem szereplő verzió van, és az alapfájltól eltérő dátumokat. Bármilyen hibánál nem nulla kilépési
-kóddal tér vissza, így kiadás vagy pull request kapuja lehet:
+A parse-hibákat (és figyelmeztetéseket) fájl- és sormegjelöléssel jelzi, ugyanígy az olyan
+alapfájlt, amelyben nincs kiadás, az olyan fordítást, amelyből hiányzik egy kiadott verzió, vagy
+amelyben az alapfájlban nem szereplő verzió van, valamint az alapfájltól eltérő dátumokat. Bármilyen
+hibánál nem nulla kilépési kóddal tér vissza, így kiadás vagy pull request kapuja lehet:
 
 ```yaml
 # .github/workflows/tests.yml
@@ -211,6 +260,7 @@ use IntrAgile\Changelog\Facades\Changelog;
 
 Changelog::latest('hu');          // ?LocalizedRelease
 Changelog::releases('hu');        // list<LocalizedRelease>, a show_unreleased szerint
+Changelog::versions('hu');        // ugyanaz, mint a releases()
 Changelog::find('1.2.0', 'hu');   // ?LocalizedRelease
 Changelog::parsed();              // az alapfájl úgy, ahogy írva van, a parse-hibákkal
 ```
@@ -218,14 +268,35 @@ Changelog::parsed();              // az alapfájl úgy, ahogy írva van, a parse
 A `LocalizedRelease` tartalmazza a beolvasott `release`-t, a `locale`-t, ahonnan származik, és a
 `fallback`-et.
 
+## Nyilvános API és szemantikus verziózás
+
+A csomag a [szemantikus verziózást](https://semver.org/lang/hu/) követi. Az 1.0.0-tól kezdve az
+alábbiak bármelyikét érintő, visszafelé nem kompatibilis változás a következő főverzióig vár:
+
+- a `Changelog` facade metódusai: `releases()`, `versions()`, `find()`, `latest()`, `parsed()`,
+  `translationPath()` és `routes()`;
+- a `LocalizedRelease`, `Release`, `ReleaseGroup`, `ParsedChangelog` és `ParseIssue` olvasható
+  tulajdonságai (és a `ParseIssue::ERROR` / `ParseIssue::WARNING` konstansok);
+- a config kulcsai és jelentésük;
+- a route-ok, a nevük és a lekérdezési paramétereik, valamint a fent leírt JSON-szerkezetek;
+- a `changelog:check` parancs, a kapcsolói és a kilépési kódja.
+
+Nem tartozik ide: az értékobjektumok saját kézzel való létrehozása (a konstruktoruk új
+paramétereket kaphat), valamint minden `@internal` jelölésű osztály és metódus: a controller, a
+middleware-ek és a resource, a parancs osztálya, a nyelvfeloldó, a markdown-renderelő, a parser
+és a repository konstruktora. A repositoryt a konténerből kérd el, vagy használd a facade-ot.
+
 ## Cache
 
-A beolvasott kiadások nyelvenként, a beállított store-ban vannak gyorsítótárazva, az alap- és a
-fordításfájlok útvonalából, módosítási idejéből és méretéből képzett kulccsal. A fájlt módosító
-deploy tehát bármi törlése nélkül megjelenik.
+A beolvasott kiadások a renderelt HTML-lel és szöveggel együtt nyelvenként, a beállított store-ban
+vannak gyorsítótárazva, az alap- és a fordításfájlok útvonalából, módosítási idejéből és méretéből
+képzett kulccsal. Ha egy deploy módosítja a fájlt, a változás anélkül jelenik meg, hogy bármit
+törölni kellene. A bejegyzések csak tömböket és szövegeket tartalmaznak, így az objektumok
+visszaállítását tiltó store-okkal (`cache.serializable_classes = false`) is működnek, és egy nap
+után lejárnak, hogy a régi deployok kulcsai ne halmozódjanak fel.
 
-Korlát: az a szerkesztés, amelyet az előzővel azonos másodpercben végzel, és a fájl mérete pontosan
-ugyanaz marad, nem észlelhető. A fájl következő módosításakor jelenik meg, vagy ha törlöd a
+Korlát: az előző szerkesztéssel azonos másodpercben végzett módosítás, ha a fájl mérete nem
+változik, nem észlelhető. A fájl következő módosításakor jelenik meg, vagy ha törlöd a
 cache-t. A gyakorlatban ez csak a fájl kézi, helyben szerkesztésekor számít; a deploy lecseréli a
 fájlokat.
 
