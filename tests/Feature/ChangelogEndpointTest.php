@@ -6,6 +6,7 @@ namespace IntrAgile\Changelog\Tests\Feature;
 
 use Illuminate\Contracts\Debug\ExceptionHandler;
 use Illuminate\Foundation\Exceptions\Handler;
+use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\File;
 use Illuminate\Validation\ValidationException;
 use IntrAgile\Changelog\Tests\TestCase;
@@ -228,6 +229,21 @@ final class ChangelogEndpointTest extends TestCase
             }
         } finally {
             File::deleteDirectory($this->dir.'/cache');
+        }
+    }
+
+    public function test_host_wide_without_wrapping_does_not_change_the_shape(): void
+    {
+        JsonResource::withoutWrapping();
+
+        try {
+            $this->getJson('/changelog/latest')->assertOk()->assertJsonPath('data.version', '1.2.0');
+            $this->getJson('/changelog/1.0.0')->assertOk()->assertJsonPath('data.version', '1.0.0');
+            $this->getJson('/changelog')->assertOk()
+                ->assertJsonPath('data.0.version', '1.2.0')
+                ->assertJsonPath('meta.total', 4);
+        } finally {
+            JsonResource::wrap('data');
         }
     }
 }

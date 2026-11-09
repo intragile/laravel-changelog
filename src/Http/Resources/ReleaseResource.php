@@ -15,6 +15,13 @@ use IntrAgile\Changelog\LocalizedRelease;
 final class ReleaseResource extends JsonResource
 {
     /**
+     * Pinned so a host-wide JsonResource::withoutWrapping() cannot change the documented shape.
+     *
+     * @var string|null
+     */
+    public static $wrap = 'data';
+
+    /**
      * @return array{
      *     version: string,
      *     date: string|null,
