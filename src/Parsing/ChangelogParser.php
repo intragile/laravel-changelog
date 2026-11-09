@@ -276,14 +276,9 @@ final class ChangelogParser
         $lines = [];
 
         foreach ($this->sourceLines($start, $end) as $offset => $line) {
-            if ($offset === 0) {
-                $lines[] = substr($line, $width);
-
-                continue;
-            }
-
-            $indent = strspn($line, ' ');
-            $lines[] = substr($line, min($indent, $width));
+            // The first line drops the indent and marker; later lines drop
+            // at most that many columns of leading whitespace.
+            $lines[] = $this->stripColumns($line, $width, $offset === 0);
         }
 
         return $this->withReferences(trim(implode("\n", $lines)));
@@ -306,12 +301,12 @@ final class ChangelogParser
         $lines = $this->sourceLines($start, $end);
 
         $indents = array_map(
-            fn (string $line): int => strspn($line, ' '),
+            fn (string $line): int => $this->indentColumns($line),
             array_filter($lines, fn (string $line): bool => trim($line) !== ''),
         );
         $indent = $indents === [] ? 0 : min($indents);
 
-        $markdown = trim(implode("\n", array_map(fn (string $line): string => substr($line, $indent), $lines)));
+        $markdown = trim(implode("\n", array_map(fn (string $line): string => $this->stripColumns($line, $indent, false), $lines)));
 
         return $markdown === '' ? null : $this->withReferences($markdown);
     }
@@ -344,6 +339,52 @@ final class ChangelogParser
         }
 
         return $definitions === [] ? $markdown : $markdown."\n\n".implode("\n", $definitions);
+    }
+
+    /**
+     * Removes the first $columns columns of a line, counting tabs to the next
+     * multiple of 4 as CommonMark does. A tab that straddles the cut leaves
+     * its remaining columns behind as spaces. Unless $anyCharacter is set
+     * (for the list marker line), only leading spaces and tabs are removed.
+     */
+    private function stripColumns(string $line, int $columns, bool $anyCharacter): string
+    {
+        $column = 0;
+        $length = strlen($line);
+
+        for ($i = 0; $i < $length && $column < $columns; $i++) {
+            $char = $line[$i];
+
+            if ($char === "\t") {
+                $column += 4 - ($column % 4);
+            } elseif ($char === ' ' || $anyCharacter) {
+                $column++;
+            } else {
+                break;
+            }
+        }
+
+        return str_repeat(' ', max(0, $column - $columns)).substr($line, $i);
+    }
+
+    /**
+     * The width of a line's leading whitespace in columns (tab stops of 4).
+     */
+    private function indentColumns(string $line): int
+    {
+        $column = 0;
+
+        for ($i = 0, $length = strlen($line); $i < $length; $i++) {
+            if ($line[$i] === "\t") {
+                $column += 4 - ($column % 4);
+            } elseif ($line[$i] === ' ') {
+                $column++;
+            } else {
+                break;
+            }
+        }
+
+        return $column;
     }
 
     /**

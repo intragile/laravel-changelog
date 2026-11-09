@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace IntrAgile\Changelog\Tests\Unit;
 
+use IntrAgile\Changelog\Markdown\SafeMarkdown;
 use IntrAgile\Changelog\Parsing\ChangelogParser;
 use IntrAgile\Changelog\Parsing\ParsedChangelog;
 use IntrAgile\Changelog\Parsing\ParseIssue;
@@ -102,6 +103,28 @@ final class ChangelogParserTest extends TestCase
         $items = (new ChangelogParser)->parse($markdown)->releases[0]->groups[0]->items;
 
         $this->assertSame(["First line\nsecond line\n\nSecond paragraph.", 'Next'], $items);
+    }
+
+    public function test_tab_after_marker_and_tab_indented_continuation_are_dedented_by_columns(): void
+    {
+        $items = (new ChangelogParser)->parse("## 1.0.0\n### Added\n-\tfoo\n\tbar\n")->releases[0]->groups[0]->items;
+
+        $this->assertSame(["foo\nbar"], $items);
+    }
+
+    public function test_tab_indented_nested_list_stays_a_list(): void
+    {
+        $items = (new ChangelogParser)->parse("## 1.0.0\n### Added\n- a\n\t- nested\n- c\n")->releases[0]->groups[0]->items;
+
+        $this->assertSame(["a\n  - nested", 'c'], $items);
+        $this->assertStringContainsString('<li>nested</li>', (new SafeMarkdown)->toHtml($items[0]));
+    }
+
+    public function test_tab_indented_summary_is_dedented_by_columns(): void
+    {
+        $release = (new ChangelogParser)->parse("## 1.0.0\n\n  Intro line\n\tand more.\n")->releases[0];
+
+        $this->assertSame("Intro line\n  and more.", $release->summary);
     }
 
     public function test_slices_keep_the_reference_definitions_they_use(): void
