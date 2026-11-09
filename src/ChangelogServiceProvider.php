@@ -20,8 +20,12 @@ final class ChangelogServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        if (config('changelog.routes.enabled') === true && ! $this->app->routesAreCached()) {
-            $middleware = config('changelog.routes.middleware', []);
+        // Defaults mirror config/changelog.php: a published config that overrides
+        // only part of `routes` replaces the whole array (the merge is shallow).
+        $enabled = filter_var(config('changelog.routes.enabled', true), FILTER_VALIDATE_BOOL);
+
+        if ($enabled && ! $this->app->routesAreCached()) {
+            $middleware = config('changelog.routes.middleware', ['api']);
 
             Route::middleware(is_array($middleware) ? $middleware : [])
                 ->group(static fn () => Changelog::routes());
