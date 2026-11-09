@@ -99,6 +99,20 @@ final class ChangelogEndpointTest extends TestCase
         $this->getJson('/changelog?page=abc')->assertStatus(422);
     }
 
+    public function test_huge_page_is_rejected_not_a_500(): void
+    {
+        $this->getJson('/changelog?page=9223372036854775807')->assertStatus(422);
+        $this->getJson('/changelog?page=1000000')->assertOk()->assertJsonCount(0, 'data');
+    }
+
+    public function test_validation_failure_is_json_without_accept_header(): void
+    {
+        $this->get('/changelog?per_page=0')
+            ->assertStatus(422)
+            ->assertHeader('Content-Type', 'application/json')
+            ->assertJsonValidationErrors(['per_page']);
+    }
+
     public function test_latest_returns_the_newest_release(): void
     {
         $this->getJson('/changelog/latest')

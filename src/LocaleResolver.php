@@ -12,18 +12,17 @@ final class LocaleResolver
     public function __construct(private readonly Config $config) {}
 
     /**
-     * An explicit ?locale wins, then the first allowed primary tag of Accept-Language, then the base locale.
-     * An explicit ?locale that is not allowed is not second-guessed: it resolves to the base locale.
+     * The first allowed of: ?locale, the primary tags of Accept-Language in order, the application locale.
+     * Anything not allowed falls through to the next step; the base locale is the last resort.
      */
     public function resolve(Request $request): string
     {
         $allowed = $this->allowed();
-        $base = $this->base();
 
         $query = $request->query('locale');
 
-        if ($query !== null) {
-            return is_string($query) && in_array($query, $allowed, true) ? $query : $base;
+        if (is_string($query) && in_array($query, $allowed, true)) {
+            return $query;
         }
 
         foreach ($request->getLanguages() as $language) {
@@ -34,7 +33,9 @@ final class LocaleResolver
             }
         }
 
-        return $base;
+        $app = app()->getLocale();
+
+        return in_array($app, $allowed, true) ? $app : $this->base();
     }
 
     /**
