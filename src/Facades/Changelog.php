@@ -13,8 +13,8 @@ use IntrAgile\Changelog\Parsing\ParsedChangelog;
  * @method static list<LocalizedRelease> releases(string $locale)
  * @method static LocalizedRelease|null find(string $version, string $locale)
  * @method static LocalizedRelease|null latest(string $locale)
- * @method static ParsedChangelog parsed(?string $locale = null)
- * @method static string translationPath(string $locale)
+ * @method static ParsedChangelog parsed(?string $locale = null) Null or the base locale parses the base file; a disallowed locale yields an error issue.
+ * @method static string|null translationPath(string $locale) Null for the base locale or a locale outside changelog.locales.
  *
  * @see ChangelogRepository
  */

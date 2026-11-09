@@ -28,7 +28,7 @@ final class ChangelogRepository
     {
         $locale = $this->resolveLocale($locale);
         $base = $this->baseLocale();
-        $translation = $locale === $base ? null : $this->translationPath($locale);
+        $translation = $this->translationPath($locale);
 
         $files = [$this->basePath()];
         if ($translation !== null) {
@@ -78,15 +78,32 @@ final class ChangelogRepository
      */
     public function parsed(?string $locale = null): ParsedChangelog
     {
-        $path = $locale === null || $locale === $this->baseLocale()
-            ? $this->basePath()
-            : $this->translationPath($locale);
+        if ($locale === null || $locale === $this->baseLocale()) {
+            return $this->parseFile($this->basePath());
+        }
+
+        $path = $this->translationPath($locale);
+
+        if ($path === null) {
+            return new ParsedChangelog([], [
+                new ParseIssue(0, ParseIssue::ERROR, 'Locale "'.$locale.'" is not allowed: it is not listed in changelog.locales.'),
+            ]);
+        }
 
         return $this->parseFile($path);
     }
 
-    public function translationPath(string $locale): string
+    /**
+     * Null when the locale is the base locale or is not in changelog.locales.
+     */
+    public function translationPath(string $locale): ?string
     {
+        $allowed = $this->config->get('changelog.locales', []);
+
+        if ($locale === $this->baseLocale() || ! is_array($allowed) || ! in_array($locale, $allowed, true)) {
+            return null;
+        }
+
         $pattern = $this->string('changelog.translation_pattern', 'CHANGELOG.{locale}.md');
 
         return dirname($this->basePath()).DIRECTORY_SEPARATOR.str_replace('{locale}', $locale, $pattern);

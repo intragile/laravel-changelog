@@ -185,4 +185,25 @@ final class ChangelogRepositoryTest extends TestCase
         $this->assertSame($this->dir.'/CHANGELOG.hu.md', $this->repo()->translationPath('hu'));
         Changelog::routes();
     }
+
+    public function test_parsed_and_translation_path_enforce_the_allowlist(): void
+    {
+        $this->base();
+        file_put_contents($this->dir.'/x.md', "# Changelog\n\n## [9.9.9] - 2026-01-01\n\n### Added\n\n- evil\n");
+        file_put_contents($this->dir.'/CHANGELOG.hu.md', "# Changelog\n\n## [1.0.0] - 2026-01-01\n\n### Admin felület\n\n- Első\n");
+        config(['changelog.translation_pattern' => '../{locale}.md']);
+
+        $parsed = $this->repo()->parsed('../x');
+        $this->assertSame([], $parsed->releases);
+        $this->assertSame(ParseIssue::ERROR, $parsed->issues[0]->severity);
+        $this->assertStringContainsString('../x', $parsed->issues[0]->message);
+
+        $this->assertNull($this->repo()->translationPath('../x'));
+        $this->assertNull($this->repo()->translationPath('en'));
+
+        config(['changelog.translation_pattern' => 'CHANGELOG.{locale}.md']);
+        $this->assertSame($this->dir.'/CHANGELOG.hu.md', $this->repo()->translationPath('hu'));
+        $this->assertSame('1.0.0', $this->repo()->parsed('hu')->releases[0]->version);
+        $this->assertCount(2, $this->repo()->parsed('en')->releases);
+    }
 }
