@@ -6,8 +6,8 @@ namespace IntrAgile\Changelog\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use IntrAgile\Changelog\ChangelogRepository;
 use IntrAgile\Changelog\LocalizedRelease;
-use IntrAgile\Changelog\Markdown\SafeMarkdown;
 
 /**
  * @property LocalizedRelease $resource
@@ -29,20 +29,15 @@ final class ReleaseResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        $markdown = app(SafeMarkdown::class);
         $release = $this->resource->release;
+        $rendered = app(ChangelogRepository::class)->rendered($this->resource);
 
         $groups = [];
-        foreach ($release->groups as $group) {
-            $items = [];
-            foreach ($group->items as $item) {
-                $items[] = ['html' => $markdown->toHtml($item), 'text' => $markdown->toText($item)];
-            }
-
+        foreach ($release->groups as $index => $group) {
             $groups[] = [
                 'name' => $group->name,
-                'summary_html' => $group->summary !== null ? $markdown->toHtml($group->summary) : null,
-                'items' => $items,
+                'summary_html' => $rendered['groups'][$index]['summary_html'] ?? null,
+                'items' => $rendered['groups'][$index]['items'] ?? [],
             ];
         }
 
@@ -52,7 +47,7 @@ final class ReleaseResource extends JsonResource
             'url' => $release->url,
             'unreleased' => $release->unreleased,
             'yanked' => $release->yanked,
-            'summary_html' => $release->summary !== null ? $markdown->toHtml($release->summary) : null,
+            'summary_html' => $rendered['summary_html'],
             'groups' => $groups,
             'locale' => $this->resource->locale,
             'fallback' => $this->resource->fallback,

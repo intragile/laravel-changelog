@@ -7,17 +7,47 @@ namespace IntrAgile\Changelog;
 use Illuminate\Contracts\Cache\Factory as CacheFactory;
 use Illuminate\Contracts\Cache\Repository as CacheRepository;
 use Illuminate\Contracts\Config\Repository as Config;
+use IntrAgile\Changelog\Markdown\SafeMarkdown;
 use IntrAgile\Changelog\Parsing\ChangelogParser;
 use IntrAgile\Changelog\Parsing\ParsedChangelog;
 use IntrAgile\Changelog\Parsing\ParseIssue;
+use IntrAgile\Changelog\Parsing\Release;
+use IntrAgile\Changelog\Parsing\ReleaseGroup;
+use WeakMap;
 
+/**
+ * @phpstan-type RenderedRelease array{summary_html: string|null, groups: list<array{summary_html: string|null, items: list<array{html: string, text: string}>}>}
+ * @phpstan-type CachedGroup array{name: string, items: list<string>, summary: string|null}
+ * @phpstan-type CachedRelease array{version: string, date: string|null, url: string|null, unreleased: bool, yanked: bool, summary: string|null, groups: list<CachedGroup>, locale: string, fallback: bool, rendered: RenderedRelease}
+ */
 final class ChangelogRepository
 {
+    /**
+     * Part of every cache key. Bump it whenever the cached array shape changes,
+     * so a deploy never reads entries written by an older version.
+     */
+    public const CACHE_VERSION = 2;
+
+    /**
+     * Cache entries are keyed on file fingerprints, so they never go stale;
+     * the TTL only stops old fingerprints from piling up after deploys.
+     */
+    private const CACHE_TTL = 86400;
+
+    /** @var WeakMap<LocalizedRelease, RenderedRelease> */
+    private WeakMap $rendered;
+
+    /**
+     * @internal Resolve the repository from the container or use the facade.
+     */
     public function __construct(
         private readonly Config $config,
         private readonly CacheFactory $cache,
         private readonly ChangelogParser $parser,
-    ) {}
+        private readonly SafeMarkdown $markdown = new SafeMarkdown,
+    ) {
+        $this->rendered = new WeakMap;
+    }
 
     /**
      * Releases in base-file order, each from the requested locale when translated, else from the base file.
@@ -27,7 +57,6 @@ final class ChangelogRepository
     public function releases(string $locale): array
     {
         $locale = $this->resolveLocale($locale);
-        $base = $this->baseLocale();
         $translation = $this->translationPath($locale);
 
         $files = [$this->basePath()];
@@ -35,12 +64,16 @@ final class ChangelogRepository
             $files[] = $translation;
         }
 
-        /** @var list<LocalizedRelease> $all */
-        $all = $this->store()->remember(
+        // Only arrays and scalars go into the cache: stores may refuse to
+        // unserialize objects (cache.serializable_classes = false).
+        /** @var mixed $cached */
+        $cached = $this->store()->remember(
             $this->cacheKey($locale, $files),
-            null,
+            self::CACHE_TTL,
             fn (): array => $this->build($locale, $translation),
         );
+
+        $all = $this->hydrate(is_array($cached) ? $cached : $this->build($locale, $translation));
 
         if ($this->config->get('changelog.show_unreleased') === true) {
             return $all;
@@ -110,7 +143,19 @@ final class ChangelogRepository
     }
 
     /**
-     * @return list<LocalizedRelease>
+     * The rendered HTML and text of a release returned by this repository.
+     *
+     * @internal Used by the JSON resource; the shape may change in any release.
+     *
+     * @return RenderedRelease
+     */
+    public function rendered(LocalizedRelease $localized): array
+    {
+        return $this->rendered[$localized] ?? $this->render($localized->release);
+    }
+
+    /**
+     * @return list<CachedRelease>
      */
     private function build(string $locale, ?string $translationPath): array
     {
@@ -122,11 +167,88 @@ final class ChangelogRepository
             $own = $translated?->find($release->version);
 
             $result[] = $own !== null
-                ? new LocalizedRelease($own, $locale, false)
-                : new LocalizedRelease($release, $base, $locale !== $base);
+                ? $this->normalise($own, $locale, false)
+                : $this->normalise($release, $base, $locale !== $base);
         }
 
         return $result;
+    }
+
+    /**
+     * @return CachedRelease
+     */
+    private function normalise(Release $release, string $locale, bool $fallback): array
+    {
+        return [
+            'version' => $release->version,
+            'date' => $release->date,
+            'url' => $release->url,
+            'unreleased' => $release->unreleased,
+            'yanked' => $release->yanked,
+            'summary' => $release->summary,
+            'groups' => array_map(static fn (ReleaseGroup $group): array => [
+                'name' => $group->name,
+                'items' => $group->items,
+                'summary' => $group->summary,
+            ], $release->groups),
+            'locale' => $locale,
+            'fallback' => $fallback,
+            'rendered' => $this->render($release),
+        ];
+    }
+
+    /**
+     * @param  array<mixed>  $cached
+     * @return list<LocalizedRelease>
+     */
+    private function hydrate(array $cached): array
+    {
+        /** @var list<CachedRelease> $cached */
+        $result = [];
+
+        foreach ($cached as $data) {
+            $release = new Release(
+                $data['version'],
+                $data['date'],
+                $data['url'],
+                $data['unreleased'],
+                $data['yanked'],
+                $data['summary'],
+                array_map(static fn (array $group): ReleaseGroup => new ReleaseGroup($group['name'], $group['items'], $group['summary']), $data['groups']),
+            );
+
+            $localized = new LocalizedRelease($release, $data['locale'], $data['fallback']);
+            $this->rendered[$localized] = $data['rendered'];
+            $result[] = $localized;
+        }
+
+        return $result;
+    }
+
+    /**
+     * @return RenderedRelease
+     */
+    private function render(Release $release): array
+    {
+        $groups = [];
+
+        foreach ($release->groups as $group) {
+            $items = [];
+            foreach ($group->items as $item) {
+                $html = $this->markdown->toHtml($item);
+                $items[] = ['html' => $html, 'text' => $this->markdown->htmlToText($html)];
+            }
+
+            $groups[] = [
+                'summary_html' => $group->summary !== null ? $this->markdown->toHtml($group->summary) : null,
+                'items' => $items,
+            ];
+        }
+
+        return [
+            'summary_html' => $release->summary !== null ? $this->markdown->toHtml($release->summary) : null,
+            'groups' => $groups,
+        ];
     }
 
     private function parseFile(string $path): ParsedChangelog
@@ -184,7 +306,7 @@ final class ChangelogRepository
 
         $prefix = $this->string('changelog.cache.prefix', 'changelog');
 
-        return $prefix.':'.$locale.':'.sha1(implode("\n", $parts));
+        return $prefix.':v'.self::CACHE_VERSION.':'.$locale.':'.sha1(implode("\n", $parts));
     }
 
     private function store(): CacheRepository

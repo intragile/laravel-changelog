@@ -21,7 +21,15 @@ final class SafeMarkdown
 
     public function toText(string $markdown): string
     {
-        $text = html_entity_decode(strip_tags($this->toHtml($markdown)), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        return $this->htmlToText($this->toHtml($markdown));
+    }
+
+    /**
+     * Flattens HTML produced by toHtml() into one line of plain text.
+     */
+    public function htmlToText(string $html): string
+    {
+        $text = html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5, 'UTF-8');
 
         return trim((string) preg_replace('/\s+/u', ' ', $text));
     }

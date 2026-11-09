@@ -6,6 +6,7 @@ namespace IntrAgile\Changelog\Tests\Feature;
 
 use Illuminate\Contracts\Debug\ExceptionHandler;
 use Illuminate\Foundation\Exceptions\Handler;
+use Illuminate\Support\Facades\File;
 use Illuminate\Validation\ValidationException;
 use IntrAgile\Changelog\Tests\TestCase;
 
@@ -205,5 +206,28 @@ final class ChangelogEndpointTest extends TestCase
         $this->getJson('/changelog/1.0.0')
             ->assertOk()
             ->assertJsonPath('data.groups.0.summary_html', '<p>Intro <strong>text</strong>.</p>');
+    }
+
+    public function test_repeated_requests_work_when_the_cache_refuses_objects(): void
+    {
+        config([
+            'cache.serializable_classes' => false,
+            'cache.stores.file.path' => $this->dir.'/cache',
+            'changelog.cache.store' => 'file',
+        ]);
+        app('cache')->forgetDriver('file');
+
+        try {
+            foreach ([1, 2] as $call) {
+                $this->getJson('/changelog?locale=hu')
+                    ->assertOk()
+                    ->assertJsonPath('data.0.version', '1.2.0')
+                    ->assertJsonPath('data.0.summary_html', '<p>Elo csoportok.</p>')
+                    ->assertJsonPath('data.0.groups.0.items.0', ['html' => '<p>Magyar elem.</p>', 'text' => 'Magyar elem.']);
+                $this->getJson('/changelog/latest')->assertOk()->assertJsonPath('data.version', '1.2.0');
+            }
+        } finally {
+            File::deleteDirectory($this->dir.'/cache');
+        }
     }
 }

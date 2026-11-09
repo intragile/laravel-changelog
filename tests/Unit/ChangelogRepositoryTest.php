@@ -4,8 +4,12 @@ declare(strict_types=1);
 
 namespace IntrAgile\Changelog\Tests\Unit;
 
+use Illuminate\Cache\Events\KeyWritten;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\File;
 use IntrAgile\Changelog\ChangelogRepository;
 use IntrAgile\Changelog\Facades\Changelog;
+use IntrAgile\Changelog\LocalizedRelease;
 use IntrAgile\Changelog\Parsing\ParseIssue;
 use IntrAgile\Changelog\Tests\TestCase;
 
@@ -30,6 +34,7 @@ final class ChangelogRepositoryTest extends TestCase
 
     protected function tearDown(): void
     {
+        File::deleteDirectory($this->dir.'/cache');
         foreach (glob($this->dir.'/*') ?: [] as $file) {
             unlink($file);
         }
@@ -205,5 +210,93 @@ final class ChangelogRepositoryTest extends TestCase
         $this->assertSame($this->dir.'/CHANGELOG.hu.md', $this->repo()->translationPath('hu'));
         $this->assertSame('1.0.0', $this->repo()->parsed('hu')->releases[0]->version);
         $this->assertCount(2, $this->repo()->parsed('en')->releases);
+    }
+
+    public function test_cached_reads_work_when_the_store_refuses_to_unserialize_objects(): void
+    {
+        $this->useFileStoreWithoutObjects();
+        $this->base("## [Unreleased]\n\n### Added\n\n- Wip\n\n");
+
+        foreach ([1, 2] as $call) {
+            $releases = $this->repo()->releases('en');
+
+            $this->assertSame(LocalizedRelease::class, get_class($releases[0]), 'call '.$call);
+            $this->assertSame(['1.1.0', '1.0.0'], array_map(fn ($r) => $r->release->version, $releases), 'call '.$call);
+            $this->assertSame('New thing', $releases[0]->release->groups[0]->items[0]);
+            $this->assertSame('Added', $releases[0]->release->groups[0]->name);
+            $this->assertSame('2026-02-01', $releases[0]->release->date);
+            $this->assertSame('en', $releases[0]->locale);
+            $this->assertFalse($releases[0]->fallback);
+
+            $this->assertSame('1.0.0', $this->repo()->find('v1.0.0', 'en')?->release->version, 'call '.$call);
+            $this->assertSame('1.1.0', $this->repo()->latest('en')?->release->version, 'call '.$call);
+        }
+
+        $files = File::allFiles($this->dir.'/cache');
+        $this->assertNotEmpty($files);
+        foreach ($files as $file) {
+            $this->assertStringNotContainsString('O:', substr($file->getContents(), 10), 'the cache entry holds no serialized object');
+        }
+    }
+
+    public function test_translated_and_fallback_releases_survive_the_cache(): void
+    {
+        $this->useFileStoreWithoutObjects();
+        $this->base();
+        file_put_contents($this->dir.'/CHANGELOG.hu.md', "# Changelog\n\n## [1.0.0] - 2026-01-01\n\nÖsszefoglaló.\n\n### Admin felület\n\nBevezető.\n\n- Első\n");
+
+        $this->repo()->releases('hu');
+        $releases = $this->repo()->releases('hu');
+
+        $this->assertTrue($releases[0]->fallback);
+        $this->assertSame('en', $releases[0]->locale);
+        $this->assertFalse($releases[1]->fallback);
+        $this->assertSame('hu', $releases[1]->locale);
+        $this->assertSame('Összefoglaló.', $releases[1]->release->summary);
+        $this->assertSame('Bevezető.', $releases[1]->release->groups[0]->summary);
+        $this->assertSame(['Első'], $releases[1]->release->groups[0]->items);
+    }
+
+    public function test_rendered_markdown_is_cached_with_the_parse(): void
+    {
+        $this->useFileStoreWithoutObjects();
+        $this->base();
+
+        $this->repo()->releases('en');
+        $release = $this->repo()->releases('en')[0];
+
+        $this->assertSame(
+            ['summary_html' => null, 'groups' => [['summary_html' => null, 'items' => [['html' => '<p>New thing</p>', 'text' => 'New thing']]]]],
+            $this->repo()->rendered($release),
+        );
+    }
+
+    public function test_cache_entries_expire_and_carry_a_schema_version(): void
+    {
+        $this->base();
+        config(['changelog.cache.store' => 'array']);
+
+        /** @var list<KeyWritten> $written */
+        $written = [];
+        Event::listen(KeyWritten::class, function (KeyWritten $event) use (&$written): void {
+            $written[] = $event;
+        });
+
+        $this->repo()->releases('en');
+
+        $this->assertCount(1, $written);
+        $this->assertStringStartsWith('changelog:v'.ChangelogRepository::CACHE_VERSION.':en:', $written[0]->key);
+        $this->assertSame(86400, $written[0]->seconds);
+        $this->assertIsArray($written[0]->value);
+    }
+
+    private function useFileStoreWithoutObjects(): void
+    {
+        config([
+            'cache.serializable_classes' => false,
+            'cache.stores.file.path' => $this->dir.'/cache',
+            'changelog.cache.store' => 'file',
+        ]);
+        app('cache')->forgetDriver('file');
     }
 }
