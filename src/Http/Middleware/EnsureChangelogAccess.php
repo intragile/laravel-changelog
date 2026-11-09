@@ -11,6 +11,9 @@ use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
+/**
+ * @internal Not part of the public API; it may change in any release.
+ */
 final class EnsureChangelogAccess
 {
     public function __construct(

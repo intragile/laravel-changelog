@@ -11,6 +11,8 @@ use Symfony\Component\HttpFoundation\Response;
 /**
  * Makes the request expect JSON so validation errors and 404s are never redirects or HTML,
  * while the host's exception handler still formats them.
+ *
+ * @internal Not part of the public API; it may change in any release.
  */
 final class ForceJsonResponse
 {

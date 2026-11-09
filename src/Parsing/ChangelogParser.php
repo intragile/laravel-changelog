@@ -27,6 +27,8 @@ use Throwable;
  *
  * @phpstan-type GroupState array{name: string, summary: list<AbstractBlock>, items: list<string>, hasList: bool, pending: list<AbstractBlock>}
  * @phpstan-type ReleaseState array{version: string, date: ?string, url: ?string, unreleased: bool, yanked: bool, summary: list<AbstractBlock>, groups: list<GroupState>}
+ *
+ * @internal Not part of the public API; it may change in any release.
  */
 final class ChangelogParser
 {

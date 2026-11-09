@@ -11,6 +11,9 @@ use IntrAgile\Changelog\Parsing\ParsedChangelog;
 use IntrAgile\Changelog\Parsing\ParseIssue;
 use Symfony\Component\Console\Input\InputOption;
 
+/**
+ * @internal The changelog:check command, its options and exit codes are public API; this class is not.
+ */
 final class CheckCommand extends Command
 {
     protected $name = 'changelog:check';

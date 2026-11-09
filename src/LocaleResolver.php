@@ -7,6 +7,9 @@ namespace IntrAgile\Changelog;
 use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Http\Request;
 
+/**
+ * @internal Not part of the public API; it may change in any release.
+ */
 final class LocaleResolver
 {
     public function __construct(private readonly Config $config) {}

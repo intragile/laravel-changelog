@@ -11,6 +11,8 @@ use IntrAgile\Changelog\LocalizedRelease;
 
 /**
  * @property LocalizedRelease $resource
+ *
+ * @internal Not part of the public API; it may change in any release.
  */
 final class ReleaseResource extends JsonResource
 {

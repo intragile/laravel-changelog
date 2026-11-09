@@ -10,6 +10,9 @@ use League\CommonMark\Extension\CommonMark\CommonMarkCoreExtension;
 use League\CommonMark\Extension\Strikethrough\StrikethroughExtension;
 use League\CommonMark\MarkdownConverter;
 
+/**
+ * @internal Not part of the public API; it may change in any release.
+ */
 final class SafeMarkdown
 {
     private ?MarkdownConverter $converter = null;

@@ -14,6 +14,9 @@ use IntrAgile\Changelog\Http\Resources\ReleaseResource;
 use IntrAgile\Changelog\LocaleResolver;
 use IntrAgile\Changelog\LocalizedRelease;
 
+/**
+ * @internal Not part of the public API; it may change in any release.
+ */
 final class ChangelogController extends Controller
 {
     public function __construct(
