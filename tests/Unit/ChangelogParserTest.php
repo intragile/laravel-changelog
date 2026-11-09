@@ -229,6 +229,19 @@ final class ChangelogParserTest extends TestCase
         $this->assertSame(['b', 'c'], $changelog->releases[1]->groups[0]->items);
     }
 
+    public function test_issues_are_in_line_order(): void
+    {
+        $markdown = "## [2.0.0] - 2026-02-01\n\n### Added\n\n- a\n\nStray A.\n\n### Fixed\n\n- b\n\n> Stray B.\n\n- c\n\n## [1.0.0] - 2026-01-01\n\n### Added\n\n- d\n";
+        $changelog = (new ChangelogParser)->parse($markdown);
+
+        $this->assertSame([[7, 'warning'], [13, 'warning']], array_map(
+            fn (ParseIssue $issue): array => [$issue->line, $issue->severity],
+            $changelog->issues,
+        ));
+        $this->assertStringContainsString('"Added"', $changelog->issues[0]->message);
+        $this->assertStringContainsString('"Fixed"', $changelog->issues[1]->message);
+    }
+
     public function test_empty_and_heading_less_input_gives_no_releases(): void
     {
         $this->assertSame([], (new ChangelogParser)->parse('')->releases);

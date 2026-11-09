@@ -140,7 +140,12 @@ final class ChangelogParser
             $releases[] = $this->buildRelease($current, true);
         }
 
-        return new ParsedChangelog($releases, $this->issues);
+        // Group warnings are emitted when their release closes, so they can
+        // trail later issues; usort is stable, keeping same-line issues in order.
+        $issues = $this->issues;
+        usort($issues, static fn (ParseIssue $a, ParseIssue $b): int => $a->line <=> $b->line);
+
+        return new ParsedChangelog($releases, $issues);
     }
 
     /**
