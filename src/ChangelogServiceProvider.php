@@ -11,6 +11,8 @@ final class ChangelogServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->mergeConfigFrom(__DIR__.'/../config/changelog.php', 'changelog');
+
+        $this->app->singleton(ChangelogRepository::class);
     }
 
     public function boot(): void
