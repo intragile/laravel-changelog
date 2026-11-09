@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Route;
 use IntrAgile\Changelog\ChangelogRepository;
 use IntrAgile\Changelog\Http\Controllers\ChangelogController;
 use IntrAgile\Changelog\Http\Middleware\EnsureChangelogAccess;
+use IntrAgile\Changelog\Http\Middleware\ForceJsonResponse;
 use IntrAgile\Changelog\LocalizedRelease;
 use IntrAgile\Changelog\Parsing\ParsedChangelog;
 
@@ -29,7 +30,7 @@ final class Changelog extends Facade
     public static function routes(): void
     {
         Route::prefix(self::config('prefix', 'changelog'))
-            ->middleware(EnsureChangelogAccess::class)
+            ->middleware([ForceJsonResponse::class, EnsureChangelogAccess::class])
             ->name(self::config('name', 'changelog.'))
             ->group(static function (): void {
                 Route::get('/', [ChangelogController::class, 'index'])->name('index');

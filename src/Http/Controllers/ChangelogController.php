@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace IntrAgile\Changelog\Http\Controllers;
 
 use Illuminate\Contracts\Config\Repository as Config;
-use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Routing\Controller;
@@ -41,21 +40,11 @@ final class ChangelogController extends Controller
         $default = $this->intConfig('changelog.per_page', 20);
         $max = max(1, $this->intConfig('changelog.max_per_page', 100));
 
-        $validator = Validator::make($request->query(), [
+        /** @var array{page?: int|string, per_page?: int|string} $validated */
+        $validated = Validator::make($request->query(), [
             'page' => ['sometimes', 'integer', 'min:1', 'max:1000000'],
             'per_page' => ['sometimes', 'integer', 'min:1', 'max:'.$max],
-        ]);
-
-        // A JSON API answers 422 JSON whatever the Accept header says, never a redirect.
-        if ($validator->fails()) {
-            throw new HttpResponseException(response()->json([
-                'message' => $validator->errors()->first(),
-                'errors' => $validator->errors()->messages(),
-            ], 422));
-        }
-
-        /** @var array{page?: int|string, per_page?: int|string} $validated */
-        $validated = $validator->validated();
+        ])->validate();
 
         $page = (int) ($validated['page'] ?? 1);
         $perPage = (int) ($validated['per_page'] ?? min($default, $max));

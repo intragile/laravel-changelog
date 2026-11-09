@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace IntrAgile\Changelog\Tests\Feature;
 
+use Illuminate\Contracts\Debug\ExceptionHandler;
+use Illuminate\Foundation\Exceptions\Handler;
+use Illuminate\Validation\ValidationException;
 use IntrAgile\Changelog\Tests\TestCase;
 
 final class ChangelogEndpointTest extends TestCase
@@ -111,6 +114,24 @@ final class ChangelogEndpointTest extends TestCase
             ->assertStatus(422)
             ->assertHeader('Content-Type', 'application/json')
             ->assertJsonValidationErrors(['per_page']);
+    }
+
+    public function test_not_found_is_json_without_accept_header(): void
+    {
+        $this->get('/changelog/9.9.9')
+            ->assertNotFound()
+            ->assertHeader('Content-Type', 'application/json');
+    }
+
+    public function test_host_exception_rendering_is_honoured(): void
+    {
+        $handler = app(ExceptionHandler::class);
+        $this->assertInstanceOf(Handler::class, $handler);
+        $handler->renderable(static fn (ValidationException $e) => response()->json(['problem' => true], 422));
+
+        $this->get('/changelog?per_page=0')
+            ->assertStatus(422)
+            ->assertExactJson(['problem' => true]);
     }
 
     public function test_latest_returns_the_newest_release(): void
