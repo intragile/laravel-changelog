@@ -184,7 +184,7 @@ final class ChangelogParser
 
         foreach ($heading->iterator() as $node) {
             if ($node instanceof Link) {
-                $url = $node->getUrl();
+                $url = $this->safeUrl($node->getUrl());
 
                 break;
             }
@@ -199,6 +199,18 @@ final class ChangelogParser
             'summary' => [],
             'groups' => [],
         ];
+    }
+
+    /**
+     * Keeps http(s) and relative URLs; any other scheme (javascript:, data:, ...) becomes null.
+     */
+    private function safeUrl(string $url): ?string
+    {
+        if (preg_match('/^([a-z][a-z0-9+.-]*):/i', $url, $match) !== 1) {
+            return $url;
+        }
+
+        return in_array(strtolower($match[1]), ['http', 'https'], true) ? $url : null;
     }
 
     /**

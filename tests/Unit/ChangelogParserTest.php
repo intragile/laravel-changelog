@@ -196,6 +196,27 @@ final class ChangelogParserTest extends TestCase
         $this->assertSame('2026-01-01', $changelog->releases[0]->date);
     }
 
+    public function test_heading_url_is_kept_only_for_http_and_relative_targets(): void
+    {
+        $markdown = <<<'MD'
+        ## [5.0.0](javascript:alert(1)) - 2026-05-01
+        ## [4.0.0] - 2026-04-01
+        ## [3.0.0](HTTPS://example.com/v3) - 2026-03-01
+        ## [2.0.0](/releases/v2) - 2026-02-01
+        ## [1.0.0](data:text/html,x) - 2026-01-01
+        ## [0.9.0](http://example.com/v0.9) - 2025-12-01
+
+        [4.0.0]: vbscript:msgbox
+        MD;
+
+        $changelog = (new ChangelogParser)->parse($markdown);
+
+        $this->assertSame(
+            ['5.0.0' => null, '4.0.0' => null, '3.0.0' => 'HTTPS://example.com/v3', '2.0.0' => '/releases/v2', '1.0.0' => null, '0.9.0' => 'http://example.com/v0.9'],
+            array_combine($this->versions($changelog), array_map(fn (Release $release): ?string => $release->url, $changelog->releases)),
+        );
+    }
+
     public function test_non_list_block_in_group_warns_unless_it_is_the_document_footer(): void
     {
         $markdown = "## 2.0.0\n### Added\n- a\n\nNot a footer.\n\n## 1.0.0\n### Added\n- b\n\n> quoted\n\n- c\n\nFooter.\n";
