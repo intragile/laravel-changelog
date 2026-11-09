@@ -98,4 +98,33 @@ final class LocaleResolverTest extends TestCase
 
         $this->assertSame('hu', $this->resolve($request));
     }
+
+    public function test_region_locale_matches_the_full_tag(): void
+    {
+        config(['changelog.locales' => ['en', 'pt', 'pt-BR', 'pt-PT']]);
+
+        $this->assertSame('pt-BR', $this->resolve(Request::create('/x', 'GET', server: ['HTTP_ACCEPT_LANGUAGE' => 'pt-BR,pt;q=0.9'])));
+        $this->assertSame('pt-PT', $this->resolve(Request::create('/x', 'GET', server: ['HTTP_ACCEPT_LANGUAGE' => 'pt-pt,pt-BR;q=0.9'])));
+    }
+
+    public function test_full_tag_match_ignores_separator_and_case_and_returns_the_configured_spelling(): void
+    {
+        config(['changelog.locales' => ['en', 'pt_BR']]);
+
+        $this->assertSame('pt_BR', $this->resolve(Request::create('/x', 'GET', server: ['HTTP_ACCEPT_LANGUAGE' => 'pt-br'])));
+    }
+
+    public function test_region_tag_falls_back_to_its_primary_tag(): void
+    {
+        config(['changelog.locales' => ['en', 'pt']]);
+
+        $this->assertSame('pt', $this->resolve(Request::create('/x', 'GET', server: ['HTTP_ACCEPT_LANGUAGE' => 'pt-BR'])));
+    }
+
+    public function test_primary_tag_does_not_widen_to_a_region_locale(): void
+    {
+        config(['changelog.locales' => ['en', 'pt-BR']]);
+
+        $this->assertSame('en', $this->resolve(Request::create('/x', 'GET', server: ['HTTP_ACCEPT_LANGUAGE' => 'pt'])));
+    }
 }

@@ -12,7 +12,8 @@ final class LocaleResolver
     public function __construct(private readonly Config $config) {}
 
     /**
-     * The first allowed of: ?locale, the primary tags of Accept-Language in order, the application locale.
+     * The first allowed of: ?locale, the Accept-Language tags in order (each by its full tag, e.g. pt-BR,
+     * then by its primary tag, e.g. pt), the application locale.
      * Anything not allowed falls through to the next step; the base locale is the last resort.
      */
     public function resolve(Request $request): string
@@ -25,17 +26,33 @@ final class LocaleResolver
             return $query;
         }
 
-        foreach ($request->getLanguages() as $language) {
-            $primary = strtolower(strtok($language, '-_') ?: '');
+        // Normalised tag (lower case, "-") => the locale as configured.
+        $normalised = [];
+        foreach ($allowed as $locale) {
+            $normalised[$this->normalise($locale)] ??= $locale;
+        }
 
-            if (in_array($primary, $allowed, true)) {
-                return $primary;
+        foreach ($request->getLanguages() as $language) {
+            $full = $this->normalise($language);
+            $primary = explode('-', $full)[0];
+
+            if (isset($normalised[$full])) {
+                return $normalised[$full];
+            }
+
+            if (isset($normalised[$primary])) {
+                return $normalised[$primary];
             }
         }
 
         $app = app()->getLocale();
 
         return in_array($app, $allowed, true) ? $app : $this->base();
+    }
+
+    private function normalise(string $tag): string
+    {
+        return strtolower(str_replace('_', '-', $tag));
     }
 
     /**
