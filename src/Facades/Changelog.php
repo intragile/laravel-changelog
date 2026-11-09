@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace IntrAgile\Changelog\Facades;
 
 use Illuminate\Support\Facades\Facade;
+use Illuminate\Support\Facades\Route;
 use IntrAgile\Changelog\ChangelogRepository;
+use IntrAgile\Changelog\Http\Controllers\ChangelogController;
+use IntrAgile\Changelog\Http\Middleware\EnsureChangelogAccess;
 use IntrAgile\Changelog\LocalizedRelease;
 use IntrAgile\Changelog\Parsing\ParsedChangelog;
 
@@ -25,7 +28,23 @@ final class Changelog extends Facade
      */
     public static function routes(): void
     {
-        // Filled in by the HTTP layer.
+        Route::prefix(self::config('prefix', 'changelog'))
+            ->middleware(EnsureChangelogAccess::class)
+            ->name(self::config('name', 'changelog.'))
+            ->group(static function (): void {
+                Route::get('/', [ChangelogController::class, 'index'])->name('index');
+                Route::get('/latest', [ChangelogController::class, 'latest'])->name('latest');
+                Route::get('/{version}', [ChangelogController::class, 'show'])
+                    ->where('version', '[0-9A-Za-z.+-]+')
+                    ->name('show');
+            });
+    }
+
+    private static function config(string $key, string $default): string
+    {
+        $value = config('changelog.routes.'.$key, $default);
+
+        return is_string($value) ? trim($value, $key === 'prefix' ? '/' : '') : $default;
     }
 
     protected static function getFacadeAccessor(): string

@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace IntrAgile\Changelog;
 
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
+use IntrAgile\Changelog\Facades\Changelog;
 
 final class ChangelogServiceProvider extends ServiceProvider
 {
@@ -17,6 +19,13 @@ final class ChangelogServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        if (config('changelog.routes.enabled') === true && ! $this->app->routesAreCached()) {
+            $middleware = config('changelog.routes.middleware', []);
+
+            Route::middleware(is_array($middleware) ? $middleware : [])
+                ->group(static fn () => Changelog::routes());
+        }
+
         if ($this->app->runningInConsole()) {
             $this->publishes([
                 __DIR__.'/../config/changelog.php' => config_path('changelog.php'),
