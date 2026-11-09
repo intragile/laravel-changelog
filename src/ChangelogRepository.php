@@ -82,6 +82,16 @@ final class ChangelogRepository
         return array_values(array_filter($all, static fn (LocalizedRelease $r): bool => ! $r->release->unreleased));
     }
 
+    /**
+     * Alias of releases(), under the name the design uses; there is no difference in behaviour.
+     *
+     * @return list<LocalizedRelease>
+     */
+    public function versions(string $locale): array
+    {
+        return $this->releases($locale);
+    }
+
     public function find(string $version, string $locale): ?LocalizedRelease
     {
         $needle = (string) preg_replace('/^v(?=\d)/i', '', trim($version));

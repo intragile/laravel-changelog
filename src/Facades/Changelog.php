@@ -14,7 +14,8 @@ use IntrAgile\Changelog\LocalizedRelease;
 use IntrAgile\Changelog\Parsing\ParsedChangelog;
 
 /**
- * @method static list<LocalizedRelease> releases(string $locale)
+ * @method static list<LocalizedRelease> releases(string $locale) Base-file order; honours show_unreleased.
+ * @method static list<LocalizedRelease> versions(string $locale) Alias of releases().
  * @method static LocalizedRelease|null find(string $version, string $locale)
  * @method static LocalizedRelease|null latest(string $locale)
  * @method static ParsedChangelog parsed(?string $locale = null) Null or the base locale parses the base file; a disallowed locale yields an error issue.

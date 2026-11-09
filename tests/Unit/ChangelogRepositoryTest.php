@@ -290,6 +290,26 @@ final class ChangelogRepositoryTest extends TestCase
         $this->assertIsArray($written[0]->value);
     }
 
+    public function test_versions_is_an_alias_of_releases(): void
+    {
+        $this->base("## [Unreleased]\n\n### Added\n\n- Wip\n\n");
+
+        $this->assertSame(['1.1.0', '1.0.0'], $this->versionsOf($this->repo()->versions('en')));
+        $this->assertSame($this->versionsOf($this->repo()->releases('en')), $this->versionsOf(Changelog::versions('en')));
+
+        config(['changelog.show_unreleased' => true]);
+        $this->assertSame(['Unreleased', '1.1.0', '1.0.0'], $this->versionsOf(Changelog::versions('en')));
+    }
+
+    /**
+     * @param  list<LocalizedRelease>  $releases
+     * @return list<string>
+     */
+    private function versionsOf(array $releases): array
+    {
+        return array_map(static fn (LocalizedRelease $r): string => $r->release->version, $releases);
+    }
+
     private function useFileStoreWithoutObjects(): void
     {
         config([
