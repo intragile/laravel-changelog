@@ -6,6 +6,7 @@ namespace IntrAgile\Changelog;
 
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
+use IntrAgile\Changelog\Console\CheckCommand;
 use IntrAgile\Changelog\Facades\Changelog;
 
 final class ChangelogServiceProvider extends ServiceProvider
@@ -27,6 +28,8 @@ final class ChangelogServiceProvider extends ServiceProvider
         }
 
         if ($this->app->runningInConsole()) {
+            $this->commands([CheckCommand::class]);
+
             $this->publishes([
                 __DIR__.'/../config/changelog.php' => config_path('changelog.php'),
             ], 'changelog-config');
