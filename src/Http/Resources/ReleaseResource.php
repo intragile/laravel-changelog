@@ -24,6 +24,9 @@ final class ReleaseResource extends JsonResource
     public static $wrap = 'data';
 
     /**
+     * The per-item @var tags are read by OpenAPI generators such as Scramble, which cannot infer
+     * these types through the repository; they mirror the @return shape.
+     *
      * @return array{
      *     version: string,
      *     date: string|null,
@@ -51,14 +54,23 @@ final class ReleaseResource extends JsonResource
         }
 
         return [
+            /** @var string */
             'version' => $release->version,
+            /** @var string|null */
             'date' => $release->date,
+            /** @var string|null */
             'url' => $release->url,
+            /** @var bool */
             'unreleased' => $release->unreleased,
+            /** @var bool */
             'yanked' => $release->yanked,
+            /** @var string|null */
             'summary_html' => $rendered['summary_html'],
+            /** @var list<array{name: string, summary_html: string|null, items: list<array{html: string, text: string}>}> */
             'groups' => $groups,
+            /** @var string */
             'locale' => $this->resource->locale,
+            /** @var bool */
             'fallback' => $this->resource->fallback,
         ];
     }

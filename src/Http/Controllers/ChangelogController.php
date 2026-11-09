@@ -74,7 +74,10 @@ final class ChangelogController extends Controller
      */
     public function latest(Request $request): ReleaseResource
     {
-        return $this->respond($this->repository->latest($this->locales->resolve($request)));
+        $release = $this->repository->latest($this->locales->resolve($request));
+        abort_if($release === null, 404);
+
+        return new ReleaseResource($release);
     }
 
     /**
@@ -82,14 +85,8 @@ final class ChangelogController extends Controller
      */
     public function show(Request $request, string $version): ReleaseResource
     {
-        return $this->respond($this->repository->find($version, $this->locales->resolve($request)));
-    }
-
-    private function respond(?LocalizedRelease $release): ReleaseResource
-    {
-        if ($release === null) {
-            abort(404);
-        }
+        $release = $this->repository->find($version, $this->locales->resolve($request));
+        abort_if($release === null, 404);
 
         return new ReleaseResource($release);
     }
