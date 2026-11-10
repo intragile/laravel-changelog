@@ -11,9 +11,9 @@ All notable changes are recorded here. The format follows
 ### Fixed
 
 - Every endpoint now validates the optional `?locale=` query parameter (a string of at most 20
-  characters), so OpenAPI generators such as Scramble document it. A supported locale is served and
-  an unsupported one falls through to `Accept-Language` as before; only an array or an over-long
-  value now answers 422 instead of being ignored.
+  characters), so OpenAPI generators such as Scramble document it. A supported locale is served,
+  and an empty or unsupported one falls through to `Accept-Language` as before; only an array or a
+  value over 20 characters now answers 422 instead of being ignored.
 - A cache entry that does not have the expected shape is rebuilt and overwritten instead of
   failing the request with a `TypeError`.
 - A protocol-relative heading link (`//host`) gives `url: null`; it was passed on as if it were

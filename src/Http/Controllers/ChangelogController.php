@@ -29,6 +29,9 @@ final class ChangelogController extends Controller
     /**
      * List the releases, newest first, paginated.
      *
+     * `?locale=` is optional on every endpoint: empty behaves like a missing one, and a well-formed but unsupported
+     * value falls through to Accept-Language.
+     *
      * `locale` is the resolved language; `fallback` is true when any returned release is shown in the base language
      * because it has no translation.
      *
@@ -44,11 +47,11 @@ final class ChangelogController extends Controller
         $default = $this->intConfig('changelog.per_page', 20);
         $max = max(1, $this->intConfig('changelog.max_per_page', 100));
 
-        /** @var array{page?: int|string, per_page?: int|string, locale?: string} $validated */
+        /** @var array{page?: int|string, per_page?: int|string, locale?: string|null} $validated */
         $validated = Validator::make($request->query(), [
             'page' => ['sometimes', 'integer', 'min:1', 'max:1000000'],
             'per_page' => ['sometimes', 'integer', 'min:1', 'max:'.$max],
-            'locale' => ['sometimes', 'string', 'max:20'],
+            'locale' => ['sometimes', 'nullable', 'string', 'max:20'],
         ])->validate();
 
         $page = (int) ($validated['page'] ?? 1);
@@ -77,7 +80,7 @@ final class ChangelogController extends Controller
     public function latest(Request $request): ReleaseResource
     {
         Validator::make($request->query(), [
-            'locale' => ['sometimes', 'string', 'max:20'],
+            'locale' => ['sometimes', 'nullable', 'string', 'max:20'],
         ])->validate();
 
         $release = $this->repository->latest($this->locales->resolve($request));
@@ -94,7 +97,7 @@ final class ChangelogController extends Controller
     public function show(Request $request, string $version): ReleaseResource
     {
         Validator::make($request->query(), [
-            'locale' => ['sometimes', 'string', 'max:20'],
+            'locale' => ['sometimes', 'nullable', 'string', 'max:20'],
         ])->validate();
 
         $release = $this->repository->find($version, $this->locales->resolve($request));

@@ -235,24 +235,24 @@ final class ChangelogRepository
                 || ! $this->isNullableString($data, 'summary')
                 || ! is_string($data['locale'] ?? null)
                 || ! is_bool($data['fallback'] ?? null)
-                || ! is_array($data['groups'] ?? null)
+                || ! $this->isList($data['groups'] ?? null)
                 || ! is_array($data['rendered'] ?? null)
                 || ! $this->isNullableString($data['rendered'], 'summary_html')
-                || ! is_array($data['rendered']['groups'] ?? null)
+                || ! $this->isList($data['rendered']['groups'] ?? null)
                 || count($data['rendered']['groups']) !== count($data['groups'])) {
                 return false;
             }
 
-            foreach (array_values($data['groups']) as $index => $group) {
+            foreach ($data['groups'] as $index => $group) {
                 $rendered = $data['rendered']['groups'][$index] ?? null;
 
                 if (! is_array($group)
                     || ! is_string($group['name'] ?? null)
                     || ! $this->isNullableString($group, 'summary')
-                    || ! is_array($group['items'] ?? null)
+                    || ! $this->isList($group['items'] ?? null)
                     || ! is_array($rendered)
                     || ! $this->isNullableString($rendered, 'summary_html')
-                    || ! is_array($rendered['items'] ?? null)
+                    || ! $this->isList($rendered['items'] ?? null)
                     || count($rendered['items']) !== count($group['items'])) {
                     return false;
                 }
@@ -272,6 +272,14 @@ final class ChangelogRepository
         }
 
         return true;
+    }
+
+    /**
+     * @phpstan-assert-if-true list<mixed> $value
+     */
+    private function isList(mixed $value): bool
+    {
+        return is_array($value) && array_is_list($value);
     }
 
     /**

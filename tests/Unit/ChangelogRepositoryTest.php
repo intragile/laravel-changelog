@@ -308,6 +308,7 @@ final class ChangelogRepositoryTest extends TestCase
             [['version' => '1.1.0']],
             [['version' => 1, 'date' => null, 'url' => null, 'unreleased' => false, 'yanked' => false, 'summary' => null, 'groups' => [], 'locale' => 'en', 'fallback' => false, 'rendered' => ['summary_html' => null, 'groups' => []]]],
             ['not-a-release'],
+            [['version' => '1.1.0', 'date' => null, 'url' => null, 'unreleased' => false, 'yanked' => false, 'summary' => null, 'groups' => ['a' => ['name' => 'Added', 'items' => ['x'], 'summary' => null]], 'locale' => 'en', 'fallback' => false, 'rendered' => ['summary_html' => null, 'groups' => [['summary_html' => null, 'items' => [['html' => '<p>x</p>', 'text' => 'x']]]]]]],
         ] as $corrupt) {
             Cache::store('array')->put($keys[0], $corrupt, 60);
 

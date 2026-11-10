@@ -123,6 +123,17 @@ final class ChangelogEndpointTest extends TestCase
         $this->getJson('/changelog/1.1.1?locale=fr')->assertOk()->assertJsonPath('data.locale', 'en');
     }
 
+    public function test_empty_locale_falls_through_like_a_missing_one(): void
+    {
+        foreach (['', '%20'] as $value) {
+            $this->getJson('/changelog?locale='.$value, ['Accept-Language' => 'hu'])
+                ->assertOk()
+                ->assertJsonPath('locale', 'hu');
+            $this->getJson('/changelog/latest?locale='.$value)->assertOk()->assertJsonPath('data.locale', 'en');
+            $this->getJson('/changelog/1.1.1?locale='.$value)->assertOk()->assertJsonPath('data.locale', 'en');
+        }
+    }
+
     public function test_huge_page_is_rejected_not_a_500(): void
     {
         $this->getJson('/changelog?page=9223372036854775807')->assertStatus(422);
