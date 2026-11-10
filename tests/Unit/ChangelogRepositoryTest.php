@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace IntrAgile\Changelog\Tests\Unit;
 
 use Illuminate\Cache\Events\KeyWritten;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\File;
 use IntrAgile\Changelog\ChangelogRepository;
@@ -288,6 +289,34 @@ final class ChangelogRepositoryTest extends TestCase
         $this->assertStringStartsWith('changelog:v'.ChangelogRepository::CACHE_VERSION.':en:', $written[0]->key);
         $this->assertSame(86400, $written[0]->seconds);
         $this->assertIsArray($written[0]->value);
+    }
+
+    public function test_a_wrong_shape_cache_entry_is_rebuilt_instead_of_failing(): void
+    {
+        $this->base();
+        config(['changelog.cache.store' => 'array']);
+
+        /** @var list<string> $keys */
+        $keys = [];
+        Event::listen(KeyWritten::class, function (KeyWritten $event) use (&$keys): void {
+            $keys[] = $event->key;
+        });
+        $this->repo()->releases('en');
+        $this->assertCount(1, $keys);
+
+        foreach ([
+            [['version' => '1.1.0']],
+            [['version' => 1, 'date' => null, 'url' => null, 'unreleased' => false, 'yanked' => false, 'summary' => null, 'groups' => [], 'locale' => 'en', 'fallback' => false, 'rendered' => ['summary_html' => null, 'groups' => []]]],
+            ['not-a-release'],
+        ] as $corrupt) {
+            Cache::store('array')->put($keys[0], $corrupt, 60);
+
+            $this->assertSame(['1.1.0', '1.0.0'], $this->versionsOf($this->repo()->releases('en')));
+            $rewritten = Cache::store('array')->get($keys[0]);
+            $this->assertIsArray($rewritten);
+            $this->assertIsArray($rewritten[0] ?? null);
+            $this->assertSame('1.1.0', $rewritten[0]['version'] ?? null);
+        }
     }
 
     public function test_versions_is_an_alias_of_releases(): void

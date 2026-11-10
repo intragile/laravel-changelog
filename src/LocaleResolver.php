@@ -48,7 +48,8 @@ final class LocaleResolver
             }
         }
 
-        $app = app()->getLocale();
+        // Application::setLocale() keeps app.locale in step with the runtime locale.
+        $app = $this->config->get('app.locale');
 
         return in_array($app, $allowed, true) ? $app : $this->base();
     }

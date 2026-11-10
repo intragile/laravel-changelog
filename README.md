@@ -200,8 +200,9 @@ values give a 422 validation error. Every endpoint also takes `?locale=`.
 - `latest` and `{version}` return a single release object, wrapped in `data`.
 - `url` is the link of the heading (inline or a `[1.2.0]: https://...` reference), or `null`. Only
   `http`, `https` and relative URLs are passed on; any other scheme (`javascript:`, `data:`, ...)
-  gives `null`.
-- Item `html` is rendered markdown; `text` is the same content as plain text.
+  and a protocol-relative `//host` target give `null`.
+- Item `html` is rendered markdown; `text` is the same content as plain text, with HTML entities
+  decoded (`&lt;` becomes `<`). Insert `text` as text, or escape it before you put it into HTML.
 - Top level `locale` is the resolved language. Top level `fallback` is `true` when **any release
   on the returned page** is shown in the base language because it has no translation.
 - Each release carries its own `locale` (the language its text actually comes from) and
@@ -299,6 +300,10 @@ Limitation: an edit made within the same second as the previous one that leaves 
 exactly the same is not detected. It appears with the next change to the file, or after you clear
 the cache. In practice this only matters when you edit a file in place by hand; deploys replace
 files.
+
+The rendered HTML is served from the cache as stored, without rendering it again, so the cache
+store must be as trusted as the application: anyone who can write to it can change what the
+endpoints return. An entry that does not have the expected shape is rebuilt and overwritten.
 
 ## Security
 

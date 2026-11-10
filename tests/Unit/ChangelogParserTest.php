@@ -217,6 +217,23 @@ final class ChangelogParserTest extends TestCase
         );
     }
 
+    public function test_protocol_relative_heading_url_is_not_treated_as_relative(): void
+    {
+        $markdown = <<<'MD'
+        ## [3.0.0](//evil.example/v3) - 2026-03-01
+        ## [2.0.0](\\evil.example/v2) - 2026-02-01
+        ## [1.0.0](/\evil.example/v1) - 2026-01-01
+        ## [0.9.0](releases/v0.9) - 2025-12-01
+        MD;
+
+        $changelog = (new ChangelogParser)->parse($markdown);
+
+        $this->assertSame(
+            ['3.0.0' => null, '2.0.0' => '%5Cevil.example/v2', '1.0.0' => '/%5Cevil.example/v1', '0.9.0' => 'releases/v0.9'],
+            array_combine($this->versions($changelog), array_map(fn (Release $release): ?string => $release->url, $changelog->releases)),
+        );
+    }
+
     public function test_non_list_block_in_group_warns_unless_it_is_the_document_footer(): void
     {
         $markdown = "## 2.0.0\n### Added\n- a\n\nNot a footer.\n\n## 1.0.0\n### Added\n- b\n\n> quoted\n\n- c\n\nFooter.\n";

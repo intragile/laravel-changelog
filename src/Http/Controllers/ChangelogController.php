@@ -13,6 +13,7 @@ use IntrAgile\Changelog\ChangelogRepository;
 use IntrAgile\Changelog\Http\Resources\ReleaseResource;
 use IntrAgile\Changelog\LocaleResolver;
 use IntrAgile\Changelog\LocalizedRelease;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 /**
  * @internal Not part of the public API; it may change in any release.
@@ -80,7 +81,9 @@ final class ChangelogController extends Controller
         ])->validate();
 
         $release = $this->repository->latest($this->locales->resolve($request));
-        abort_if($release === null, 404);
+        if ($release === null) {
+            throw new NotFoundHttpException;
+        }
 
         return new ReleaseResource($release);
     }
@@ -95,7 +98,9 @@ final class ChangelogController extends Controller
         ])->validate();
 
         $release = $this->repository->find($version, $this->locales->resolve($request));
-        abort_if($release === null, 404);
+        if ($release === null) {
+            throw new NotFoundHttpException;
+        }
 
         return new ReleaseResource($release);
     }

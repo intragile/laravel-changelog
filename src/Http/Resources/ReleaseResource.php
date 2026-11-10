@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace IntrAgile\Changelog\Http\Resources;
 
+use Illuminate\Container\Container;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use IntrAgile\Changelog\ChangelogRepository;
@@ -42,7 +43,7 @@ final class ReleaseResource extends JsonResource
     public function toArray(Request $request): array
     {
         $release = $this->resource->release;
-        $rendered = app(ChangelogRepository::class)->rendered($this->resource);
+        $rendered = Container::getInstance()->make(ChangelogRepository::class)->rendered($this->resource);
 
         $groups = [];
         foreach ($release->groups as $index => $group) {

@@ -198,8 +198,11 @@ A lista paraméterei: `page` (1 és 1000000 között) és `per_page` (1 és `max
 
 - A `latest` és a `{version}` egyetlen kiadás-objektumot ad, `data` alatt.
 - Az `url` a cím linkje (inline vagy `[1.2.0]: https://...` hivatkozás), vagy `null`. Csak `http`,
-  `https` és relatív URL jut tovább; bármely más séma (`javascript:`, `data:`, ...) `null`-t ad.
-- Az elem `html` mezője renderelt markdown; a `text` ugyanaz egyszerű szövegként.
+  `https` és relatív URL jut tovább; bármely más séma (`javascript:`, `data:`, ...) és a
+  protokollrelatív `//host` cél `null`-t ad.
+- Az elem `html` mezője renderelt markdown; a `text` ugyanaz egyszerű szövegként, feloldott
+  HTML-entitásokkal (a `&lt;`-ből `<` lesz). A `text`-et szövegként illeszd be, vagy escape-eld,
+  mielőtt HTML-be teszed.
 - A legfelső `locale` a feloldott nyelv. A legfelső `fallback` akkor `true`, ha **a visszaadott
   oldal bármelyik kiadása** az alapnyelven jelenik meg, mert nincs hozzá fordítás.
 - Minden kiadásnak saját `locale` (a szövege valójában melyik nyelvű) és `fallback` mezője van, így
@@ -299,6 +302,11 @@ Korlát: az előző szerkesztéssel azonos másodpercben végzett módosítás, 
 változik, nem észlelhető. A fájl következő módosításakor jelenik meg, vagy ha törlöd a
 cache-t. A gyakorlatban ez csak a fájl kézi, helyben szerkesztésekor számít; a deploy lecseréli a
 fájlokat.
+
+A renderelt HTML a cache-ből, úgy, ahogy tárolva van, újrarenderelés nélkül jut ki, ezért a cache
+store-nak ugyanannyira megbízhatónak kell lennie, mint az alkalmazásnak: aki írni tud bele, az
+meg tudja változtatni, mit adnak vissza a végpontok. A nem a várt szerkezetű bejegyzést a csomag
+újraépíti és felülírja.
 
 ## Biztonság
 

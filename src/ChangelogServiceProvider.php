@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace IntrAgile\Changelog;
 
+use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use IntrAgile\Changelog\Console\CheckCommand;
@@ -22,10 +23,10 @@ final class ChangelogServiceProvider extends ServiceProvider
     {
         // Defaults mirror config/changelog.php: a published config that overrides
         // only part of `routes` replaces the whole array (the merge is shallow).
-        $enabled = filter_var(config('changelog.routes.enabled', true), FILTER_VALIDATE_BOOL);
+        $enabled = filter_var($this->config()->get('changelog.routes.enabled', true), FILTER_VALIDATE_BOOL);
 
         if ($enabled && ! $this->app->routesAreCached()) {
-            $middleware = config('changelog.routes.middleware', ['api']);
+            $middleware = $this->config()->get('changelog.routes.middleware', ['api']);
 
             Route::middleware(is_array($middleware) ? $middleware : [])
                 ->group(static fn () => Changelog::routes());
@@ -35,8 +36,13 @@ final class ChangelogServiceProvider extends ServiceProvider
             $this->commands([CheckCommand::class]);
 
             $this->publishes([
-                __DIR__.'/../config/changelog.php' => config_path('changelog.php'),
+                __DIR__.'/../config/changelog.php' => $this->app->configPath('changelog.php'),
             ], 'changelog-config');
         }
+    }
+
+    private function config(): Config
+    {
+        return $this->app->make(Config::class);
     }
 }

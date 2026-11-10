@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace IntrAgile\Changelog\Facades;
 
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Facade;
 use Illuminate\Support\Facades\Route;
 use IntrAgile\Changelog\ChangelogRepository;
@@ -44,7 +45,7 @@ final class Changelog extends Facade
 
     private static function config(string $key, string $default): string
     {
-        $value = config('changelog.routes.'.$key, $default);
+        $value = Config::get('changelog.routes.'.$key, $default);
 
         return is_string($value) ? trim($value, $key === 'prefix' ? '/' : '') : $default;
     }

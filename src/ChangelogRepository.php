@@ -73,7 +73,14 @@ final class ChangelogRepository
             fn (): array => $this->build($locale, $translation),
         );
 
-        $all = $this->hydrate(is_array($cached) ? $cached : $this->build($locale, $translation));
+        // A store that hands back something else (an entry written by a foreign writer or truncated) is
+        // treated as a miss: rebuild and overwrite it rather than fail on the request.
+        if (! is_array($cached) || ! $this->isCachedReleaseList($cached)) {
+            $cached = $this->build($locale, $translation);
+            $this->store()->put($this->cacheKey($locale, $files), $cached, self::CACHE_TTL);
+        }
+
+        $all = $this->hydrate($cached);
 
         if ($this->config->get('changelog.show_unreleased') === true) {
             return $all;
@@ -209,11 +216,78 @@ final class ChangelogRepository
 
     /**
      * @param  array<mixed>  $cached
+     *
+     * @phpstan-assert-if-true list<CachedRelease> $cached
+     */
+    private function isCachedReleaseList(array $cached): bool
+    {
+        if (! array_is_list($cached)) {
+            return false;
+        }
+
+        foreach ($cached as $data) {
+            if (! is_array($data)
+                || ! is_string($data['version'] ?? null)
+                || ! $this->isNullableString($data, 'date')
+                || ! $this->isNullableString($data, 'url')
+                || ! is_bool($data['unreleased'] ?? null)
+                || ! is_bool($data['yanked'] ?? null)
+                || ! $this->isNullableString($data, 'summary')
+                || ! is_string($data['locale'] ?? null)
+                || ! is_bool($data['fallback'] ?? null)
+                || ! is_array($data['groups'] ?? null)
+                || ! is_array($data['rendered'] ?? null)
+                || ! $this->isNullableString($data['rendered'], 'summary_html')
+                || ! is_array($data['rendered']['groups'] ?? null)
+                || count($data['rendered']['groups']) !== count($data['groups'])) {
+                return false;
+            }
+
+            foreach (array_values($data['groups']) as $index => $group) {
+                $rendered = $data['rendered']['groups'][$index] ?? null;
+
+                if (! is_array($group)
+                    || ! is_string($group['name'] ?? null)
+                    || ! $this->isNullableString($group, 'summary')
+                    || ! is_array($group['items'] ?? null)
+                    || ! is_array($rendered)
+                    || ! $this->isNullableString($rendered, 'summary_html')
+                    || ! is_array($rendered['items'] ?? null)
+                    || count($rendered['items']) !== count($group['items'])) {
+                    return false;
+                }
+
+                foreach ($group['items'] as $item) {
+                    if (! is_string($item)) {
+                        return false;
+                    }
+                }
+
+                foreach ($rendered['items'] as $item) {
+                    if (! is_array($item) || ! is_string($item['html'] ?? null) || ! is_string($item['text'] ?? null)) {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param  array<mixed>  $data
+     */
+    private function isNullableString(array $data, string $key): bool
+    {
+        return array_key_exists($key, $data) && ($data[$key] === null || is_string($data[$key]));
+    }
+
+    /**
+     * @param  list<CachedRelease>  $cached
      * @return list<LocalizedRelease>
      */
     private function hydrate(array $cached): array
     {
-        /** @var list<CachedRelease> $cached */
         $result = [];
 
         foreach ($cached as $data) {

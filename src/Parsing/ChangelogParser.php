@@ -209,10 +209,16 @@ final class ChangelogParser
     }
 
     /**
-     * Keeps http(s) and relative URLs; any other scheme (javascript:, data:, ...) becomes null.
+     * Keeps http(s) and relative URLs; any other scheme (javascript:, data:, ...) becomes null, and so does a
+     * protocol-relative target (`//host`): it points to another host, so it is not relative. Backslashes need no
+     * check here: CommonMark percent-encodes them (`%5C`), so browsers do not read `\\host` as `//host`.
      */
     private function safeUrl(string $url): ?string
     {
+        if (str_starts_with($url, '//')) {
+            return null;
+        }
+
         if (preg_match('/^([a-z][a-z0-9+.-]*):/i', $url, $match) !== 1) {
             return $url;
         }

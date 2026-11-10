@@ -14,6 +14,14 @@ All notable changes are recorded here. The format follows
   characters), so OpenAPI generators such as Scramble document it. A supported locale is served and
   an unsupported one falls through to `Accept-Language` as before; only an array or an over-long
   value now answers 422 instead of being ignored.
+- A cache entry that does not have the expected shape is rebuilt and overwritten instead of
+  failing the request with a `TypeError`.
+- A protocol-relative heading link (`//host`) gives `url: null`; it was passed on as if it were
+  relative.
+- The package no longer calls the global helpers that only `laravel/framework` defines (`abort`,
+  `app`, `config`, `config_path`), and it declares `illuminate/container`, which it uses.
+- README: item `text` has its HTML entities decoded and must be escaped before it goes into HTML,
+  and the cache store must be trusted, because cached HTML is served without rendering it again.
 
 ## [1.0.0] - 2026-11-09
 
