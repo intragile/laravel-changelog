@@ -6,6 +6,15 @@ All notable changes are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.0.1] - 2026-11-10
+
+### Fixed
+
+- Every endpoint now validates the optional `?locale=` query parameter (a string of at most 20
+  characters), so OpenAPI generators such as Scramble document it. A supported locale is served and
+  an unsupported one falls through to `Accept-Language` as before; only an array or an over-long
+  value now answers 422 instead of being ignored.
+
 ## [1.0.0] - 2026-11-09
 
 ### Added
@@ -29,6 +38,7 @@ All notable changes are recorded here. The format follows
 - `changelog:check` command: parse errors, translations missing a version or carrying an extra
   one, and dates that differ from the base file. Exits non-zero on any error, for CI.
 
+[1.0.1]: https://github.com/intragile/laravel-changelog/releases/tag/v1.0.1
 [1.0.0]: https://github.com/intragile/laravel-changelog/releases/tag/v1.0.0
 
 ---

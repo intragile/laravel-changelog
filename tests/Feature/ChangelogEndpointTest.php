@@ -104,6 +104,25 @@ final class ChangelogEndpointTest extends TestCase
         $this->getJson('/changelog?page=abc')->assertStatus(422);
     }
 
+    public function test_malformed_locale_is_422_on_every_endpoint(): void
+    {
+        $long = str_repeat('x', 21);
+
+        foreach (['/changelog', '/changelog/latest', '/changelog/1.1.1'] as $path) {
+            $this->getJson($path.'?locale='.$long)->assertStatus(422)->assertJsonValidationErrors(['locale']);
+            $this->getJson($path.'?locale[]=hu')->assertStatus(422)->assertJsonValidationErrors(['locale']);
+        }
+    }
+
+    public function test_unsupported_locale_still_falls_through(): void
+    {
+        $this->getJson('/changelog?locale=fr', ['Accept-Language' => 'hu'])
+            ->assertOk()
+            ->assertJsonPath('locale', 'hu');
+        $this->getJson('/changelog/latest?locale=fr')->assertOk()->assertJsonPath('data.locale', 'en');
+        $this->getJson('/changelog/1.1.1?locale=fr')->assertOk()->assertJsonPath('data.locale', 'en');
+    }
+
     public function test_huge_page_is_rejected_not_a_500(): void
     {
         $this->getJson('/changelog?page=9223372036854775807')->assertStatus(422);

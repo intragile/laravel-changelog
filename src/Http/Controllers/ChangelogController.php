@@ -43,10 +43,11 @@ final class ChangelogController extends Controller
         $default = $this->intConfig('changelog.per_page', 20);
         $max = max(1, $this->intConfig('changelog.max_per_page', 100));
 
-        /** @var array{page?: int|string, per_page?: int|string} $validated */
+        /** @var array{page?: int|string, per_page?: int|string, locale?: string} $validated */
         $validated = Validator::make($request->query(), [
             'page' => ['sometimes', 'integer', 'min:1', 'max:1000000'],
             'per_page' => ['sometimes', 'integer', 'min:1', 'max:'.$max],
+            'locale' => ['sometimes', 'string', 'max:20'],
         ])->validate();
 
         $page = (int) ($validated['page'] ?? 1);
@@ -74,6 +75,10 @@ final class ChangelogController extends Controller
      */
     public function latest(Request $request): ReleaseResource
     {
+        Validator::make($request->query(), [
+            'locale' => ['sometimes', 'string', 'max:20'],
+        ])->validate();
+
         $release = $this->repository->latest($this->locales->resolve($request));
         abort_if($release === null, 404);
 
@@ -85,6 +90,10 @@ final class ChangelogController extends Controller
      */
     public function show(Request $request, string $version): ReleaseResource
     {
+        Validator::make($request->query(), [
+            'locale' => ['sometimes', 'string', 'max:20'],
+        ])->validate();
+
         $release = $this->repository->find($version, $this->locales->resolve($request));
         abort_if($release === null, 404);
 
